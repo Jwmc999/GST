@@ -1,5 +1,5 @@
 # GST
-The Tensorflow implementation of "Sequential recommendation" part of "Autoregressive Decoder with Extracted Gap Sessions for Sequential/Session-based Recommendation", submitted for AAAI 23' Main Track. 
+The Tensorflow implementation of "Sequential recommendation" part of "Autoregressive Decoder with Extracted Gap Sessions for Sequential/Session-based Recommendation".
 
 # Requirements
 - Tensorflow-gpu 2.4.0
