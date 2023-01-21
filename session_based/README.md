@@ -1,5 +1,5 @@
 # GST
-The Pytorch implementation of "Session-based recommendation" part of "Autoregressive Decoder with Extracted Gap Sessions for Sequential/Session-based Recommendation", submitted for AAAI 23' Main Track. 
+The Pytorch implementation of "Session-based recommendation" part of "Autoregressive Decoder with Extracted Gap Sessions for Sequential/Session-based Recommendation" 
 
 # Requirements
 - Pytorch-cuda 1.9.0
