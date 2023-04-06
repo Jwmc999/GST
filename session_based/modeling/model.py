@@ -23,6 +23,76 @@ def trans_to_cpu(variable):
     else:
         return variable
     
+## copied from https://gist.github.com/tgsmith61591/d8aa96ac7c74c24b33e4b0cb967ca519 
+def _mean_ranking_metric(predictions, labels, metric):
+    """Helper function for precision_at_k and mean_average_precision"""
+    # do not zip, as this will require an extra pass of O(N). Just assert
+    # equal length and index (compute in ONE pass of O(N)).
+    # if len(predictions) != len(labels):
+    #     raise ValueError("dim mismatch in predictions and labels!")
+    # return np.mean([
+    #     metric(np.asarray(predictions[i]), np.asarray(labels[i]))
+    #     for i in xrange(len(predictions))
+    # ])
+    
+    # Actually probably want lazy evaluation in case preds is a 
+    # generator, since preds can be very dense and could blow up 
+    # memory... but how to assert lengths equal? FIXME
+    return np.mean([
+        metric(np.asarray(prd), np.asarray(labels[i]))
+        for i, prd in enumerate(predictions)  # lazy eval if generator
+    ])
+
+## copied and edited from https://gist.github.com/tgsmith61591/d8aa96ac7c74c24b33e4b0cb967ca519 
+def precision_at(predictions, labels, k=10, assume_unique=True):
+    """Compute the precision at K.
+    Compute the average precision of all the queries, truncated at
+    ranking position k. If for a query, the ranking algorithm returns
+    n (n is less than k) results, the precision value will be computed
+    as #(relevant items retrieved) / k. This formula also applies when
+    the size of the ground truth set is less than k.
+    If a query has an empty ground truth set, zero will be used as
+    precision together with a warning.
+    Parameters
+    ----------
+    predictions : array-like, shape=(n_predictions,)
+        The prediction array. The items that were predicted, in descending
+        order of relevance.
+    labels : array-like, shape=(n_ratings,)
+        The labels (positively-rated items).
+    k : int, optional (default=10)
+        The rank at which to measure the precision.
+    assume_unique : bool, optional (default=True)
+        Whether to assume the items in the labels and predictions are each
+        unique. That is, the same item is not predicted multiple times or
+        rated multiple times.
+    Examples
+    --------
+    >>> # predictions for 3 users
+    >>> preds = [[1, 6, 2, 7, 8, 3, 9, 10, 4, 5],
+    ...          [4, 1, 5, 6, 2, 7, 3, 8, 9, 10],
+    ...          [1, 2, 3, 4, 5]]
+    >>> # labels for the 3 users
+    >>> labels = [[1, 2, 3, 4, 5], [1, 2, 3], []]
+    >>> precision_at(preds, labels, 1)
+    0.33333333333333331
+    >>> precision_at(preds, labels, 5)
+    0.26666666666666666
+    >>> precision_at(preds, labels, 15)
+    0.17777777777777778
+    """
+
+    def _inner_pk(pred, lab):
+        # need to compute the count of the number of values in the predictions
+        # that are present in the labels. We'll use numpy in1d for this (set
+        # intersection in O(1))
+        if lab.shape[0] > 0:
+            n = min(pred.shape[0], k)
+            cnt = np.in1d(pred[:n], lab, assume_unique=assume_unique).sum()
+            return float(cnt) / k
+
+    return _mean_ranking_metric(predictions, labels, _inner_pk)
+
 
 class Session(Module):
     """Session Embedding layer supporting shared input/output weights."""
@@ -214,6 +284,7 @@ def train_test(model, train_data, test_data, max_dec_len, beam_size, **beam_kwar
     for K in top_K:
         metrics['hit%d' % K] = []
         metrics['mrr%d' % K] = []
+        metrics['precision%d' %K] = []
     print('start predicting: ', datetime.datetime.now())
 
     model.eval()
@@ -225,6 +296,12 @@ def train_test(model, train_data, test_data, max_dec_len, beam_size, **beam_kwar
         outputs, log_probs = results
         output.append(outputs["outputs"])
         tar = trans_to_cpu(tar).detach().numpy()
+
+        for K in top_K:
+            pred = outputs["outputs"].view(model.batch_size, max_dec_len)
+            pred = trans_to_cpu(pred).detach().numpy()
+            result = precision_at(pred, tar, k=K)
+            metrics['precision%d' %K].append(result)
 
         for K in top_K:
             sub_scores = log_probs["gap_sg_log_probs"].topk(K)[1]
