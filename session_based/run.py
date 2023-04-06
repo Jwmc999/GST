@@ -149,6 +149,7 @@ STEPS = 40
 
 
 def main():
+    print("Start")
     train_data = pickle.load(open('data_dir/' + opt.dataset + '/train.txt', 'rb'))
     test_data = pickle.load(open('data_dir/' + opt.dataset + '/test.txt', 'rb'))
     
@@ -187,29 +188,29 @@ def main():
                                   max_seq_len=opt.max_seq_length,
                                   config=config))
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=opt.lr)
-    criterion = torch.nn.CrossEntropyLoss()
-    train(model, optimizer, criterion, train_loader, opt.epoch)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=opt.lr)
+    # criterion = torch.nn.CrossEntropyLoss()
+    # train(model, optimizer, criterion, train_loader, opt.epoch)
 
 
-    model_final = copy.deepcopy(model)
-    x, y = iter(train_loader).__next__()
-    metric = loss_landscapes.metrics.Loss(criterion, x, x)
-    loss_data_fin = loss_landscapes.random_plane(model_final, metric, 10, STEPS,
-                                                 normalization='model', deepcopy_model=True)
-    fig = plt.figure()
-    ax = plt.axes(projection='3d')
-    X = np.array([[j for j in range(STEPS)] for i in range(STEPS)])
-    Y = np.array([[i for _ in range(STEPS)] for i in range(STEPS)])
-    ax.plot_surface(X, Y, loss_data_fin, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
-    ax.set_title('Surface Plot of Loss Landscape')
-    plt.savefig('theme' + str(opt.theme) + 'fig.png', dpi=300)
+    # model_final = copy.deepcopy(model)
+    # x, y = iter(train_loader).__next__()
+    # metric = loss_landscapes.metrics.Loss(criterion, x, x)
+    # loss_data_fin = loss_landscapes.random_plane(model_final, metric, 10, STEPS,
+    #                                              normalization='model', deepcopy_model=True)
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    # X = np.array([[j for j in range(STEPS)] for i in range(STEPS)])
+    # Y = np.array([[i for _ in range(STEPS)] for i in range(STEPS)])
+    # ax.plot_surface(X, Y, loss_data_fin, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
+    # ax.set_title('Surface Plot of Loss Landscape')
+    # plt.savefig('theme' + str(opt.theme) + 'fig.png', dpi=300)
 
     top_K = [5, 10, 20]
     best_results = {}
     for K in top_K:
-        best_results['epoch%d' % K] = [0, 0]
-        best_results['metric%d' % K] = [0, 0]
+        best_results['epoch%d' % K] = [0, 0, 0]
+        best_results['metric%d' % K] = [0, 0, 0]
 
     for epoch in range(opt.epoch):
         print('-------------------------------------------------------')
@@ -221,13 +222,16 @@ def main():
         for K in top_K:
             metrics['hit%d' % K] = np.mean(metrics['hit%d' % K]) * 100
             metrics['mrr%d' % K] = np.mean(metrics['mrr%d' % K]) * 100
+            metrics['precision%d' % K] = np.mean(metrics['precision%d' % K]) 
             if best_results['metric%d' % K][0] < metrics['hit%d' % K]:
                 best_results['metric%d' % K][0] = metrics['hit%d' % K]
                 best_results['epoch%d' % K][0] = epoch
             if best_results['metric%d' % K][1] < metrics['mrr%d' % K]:
                 best_results['metric%d' % K][1] = metrics['mrr%d' % K]
                 best_results['epoch%d' % K][1] = epoch
-    
+            if best_results['metric%d' % K][2] < metrics['precision%d' % K]:
+                best_results['metric%d' % K][2] = metrics['precision%d' % K]
+                best_results['epoch%d' % K][2] = epoch    
         # Save model checkpoint
         torch.save({
                     'epoch': epoch,
@@ -244,9 +248,9 @@ def main():
 
         print(metrics)
         for K in top_K:
-            print('train_loss:\t%.4f\tP@%d: %.4f\tMRR%d: %.4f\tEpoch: %d,  %d' %
-                  (total_loss, K, best_results['metric%d' % K][0], K, best_results['metric%d' % K][1],
-                   best_results['epoch%d' % K][0], best_results['epoch%d' % K][1]))
+            print('train_loss:\t%.4f\tHIT@%d: %.4f\tMRR%d: %.4f\tP@%d: %.4f\tEpoch: %d,  %d' %
+                  (total_loss, K, best_results['metric%d' % K][0], K, best_results['metric%d' % K][1], best_results['metric%d' % K][2],
+                   best_results['epoch%d' % K][0], best_results['epoch%d' % K][1], best_results['epoch%d' % K][2]))
     
 
 
